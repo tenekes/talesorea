@@ -1,0 +1,195 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ===== Override default Tailwind Typography styles ===== */
+  .app-prose {
+    @apply prose;
+  }
+
+  /* Target headers inside the prose class */
+  .app-prose h1,
+  .app-prose h2,
+  .app-prose h3,
+  .app-prose h4,
+  .app-prose th {
+    color: var(--color-foreground);
+    @apply mb-3;
+  }
+
+  .app-prose h3 {
+    @apply italic;
+  }
+
+  .app-prose p,
+  .app-prose strong,
+  .app-prose ol,
+  .app-prose ul,
+  .app-prose figcaption,
+  .app-prose table,
+  .app-prose code {
+    color: var(--color-foreground);
+  }
+
+  .app-prose a {
+    color: var(--color-foreground);
+    text-decoration-style: dashed;
+    text-underline-offset: 4px;
+    /* FIXED: Tailwind 3 uses square brackets for CSS variables */
+    @apply hover:text-[var(--color-accent)] focus-visible:no-underline;
+  }
+
+  .app-prose ul {
+    @apply overflow-x-clip;
+  }
+
+  .app-prose li {
+    color: var(--color-foreground);
+    list-style-position: inside;
+  }
+
+  /* FIXED: Removed nesting '&' which crashes Tailwind 3 */
+  .app-prose li::marker {
+    color: var(--color-accent);
+  }
+
+  .app-prose hr {
+    border-color: var(--color-border);
+  }
+
+  .app-prose img {
+    border: 1px solid var(--color-border);
+    @apply mx-auto;
+  }
+
+  .app-prose figcaption {
+    opacity: 0.75;
+  }
+
+  .app-prose table,
+  .app-prose th,
+  .app-prose td {
+    border: 1px solid var(--color-border);
+    @apply p-2;
+  }
+
+  .app-prose th {
+    @apply py-1.5;
+  }
+
+  .app-prose code {
+    @apply break-all sm:break-normal;
+  }
+}
+
+/* Global Code Styling */
+code {
+  background-color: color-mix(in srgb, var(--color-muted) 75%, transparent);
+  color: var(--color-foreground);
+  border-radius: 0.25rem;
+  padding: 0.25rem;
+  @apply before:content-none after:content-none;
+}
+
+.astro-code code {
+  background: inherit;
+  padding: 0;
+  flex: 1 0 100%;
+}
+
+blockquote {
+  border-left: 4px solid color-mix(in srgb, var(--color-accent) 80%, transparent);
+  opacity: 0.8;
+}
+
+details {
+  cursor: pointer;
+  color: var(--color-foreground);
+  user-select: none;
+  display: inline-block;
+}
+
+/* FIXED: Replaced Tailwind 4 specific '!important' syntax */
+details p {
+  @apply hidden;
+}
+
+details ul {
+  @apply !my-0;
+}
+
+summary {
+  outline-color: var(--color-accent);
+  @apply focus-visible:no-underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-dashed;
+}
+
+pre {
+  outline-color: var(--color-accent);
+  @apply focus-visible:border-transparent focus-visible:outline-2 focus-visible:outline-dashed;
+}
+
+/* ===== Code Blocks & Syntax Highlighting ===== */
+.astro-code {
+  border-color: var(--color-border);
+  background: var(--shiki-light-bg);
+  color: var(--shiki-light);
+  @apply flex;
+}
+
+/* FIXED: Un-nested these for Tailwind 3 compatibility */
+.astro-code span {
+  color: var(--shiki-light);
+}
+
+html[data-theme="dark"] .astro-code {
+  background: var(--shiki-dark-bg);
+  color: var(--shiki-dark);
+}
+
+html[data-theme="dark"] .astro-code span {
+  color: var(--shiki-dark);
+}
+
+/* Styles for Shiki transformers */
+.line.diff.add {
+  background: color-mix(in srgb, #22c55e 20%, transparent);
+  color: #22c55e;
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.line.diff.add::before {
+  content: '+';
+  position: absolute;
+  left: -0.75rem;
+  color: #22c55e;
+}
+
+.line.diff.remove {
+  background: color-mix(in srgb, #ef4444 20%, transparent);
+  color: #ef4444;
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.line.diff.remove::before {
+  content: '-';
+  position: absolute;
+  left: -0.75rem;
+  color: #ef4444;
+}
+
+.line.highlighted {
+  background: color-mix(in srgb, #94a3b8 20%, transparent);
+  width: 100%;
+  display: inline-block;
+}
+
+.highlighted-word {
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  padding: 0 2px;
+}
