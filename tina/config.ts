@@ -8,12 +8,12 @@ const branch =
   "main";
 
 export default defineConfig({
-  branch,
+  branch: "main",
 
   // Get this from tina.io
-  clientId: process.env.NEXT_PUBLIC_TINA_CLIENT_ID,
+  clientId: process.env.TINA_PUBLIC_CLIENT_ID || "",
   // Get this from tina.io
-  token: process.env.TINA_TOKEN,
+  token: process.env.TINA_TOKEN || "",
 
   build: {
     outputFolder: "admin",
@@ -37,14 +37,41 @@ export default defineConfig({
       {
         name: "post",
         label: "Blog Posts",
-        path: "src/content/blog",
+        path: "src/data/blog",
         format: "md",
+        ui: {
+          // This part fixes the -----.md issue
+          filename: {
+            readonly: false, // Set to true if you want Tina to handle it automatically
+            slugify: (values) => {
+              // This converts "My New Post" to "my-new-post"
+              return `${values?.title?.toLowerCase().replace(/ /g, "-") || "new-post"}`;
+            },
+          },
+        },
         fields: [
-          { type: "string", name: "title", label: "Title", isTitle: true, required: true },
+          {
+            type: "string",
+            name: "title",
+            label: "Title",
+            isTitle: true,
+            required: true // Forces you to type a title first
+          },
           { type: "string", name: "author", label: "Author" },
-          { type: "datetime", name: "pubDatetime", label: "Date" },
-          { type: "string", name: "description", label: "Description" },
+          {
+            type: "datetime",
+            name: "pubDatetime",
+            label: "Date",
+            required: true // Stops Astro from crashing on empty dates
+          },
+          {
+            type: "string",
+            name: "description",
+            label: "Description",
+            required: true // Stops Astro from crashing on empty descriptions
+          },
           { type: "string", name: "tags", label: "Tags", list: true },
+          { type: "boolean", name: "featured", label: "Featured Post" },
           { type: "boolean", name: "draft", label: "Draft" },
           { type: "rich-text", name: "body", label: "Body", isBody: true },
         ],
