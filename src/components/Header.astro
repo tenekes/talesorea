@@ -28,7 +28,7 @@ const isActive = (path: string) => {
   href="#main-content"
   class="absolute start-16 -top-full z-50 bg-background px-3 py-2 text-accent backdrop-blur-lg transition-all focus:top-4"
 >
-  Skip to content
+  Πάμε στο ζουμί
 </a>
 
 <header
@@ -75,7 +75,7 @@ const isActive = (path: string) => {
       >
         <li class="col-span-2">
           <a href="/posts" class:list={{ "active-nav": isActive("/posts") }}>
-            Posts
+            Άρθρα
           </a>
         </li>
         <li class="col-span-2">
@@ -85,7 +85,7 @@ const isActive = (path: string) => {
         </li>
         <li class="col-span-2">
           <a href="/about" class:list={{ "active-nav": isActive("/about") }}>
-            About
+            Σχετικά
           </a>
         </li>
         {
@@ -103,7 +103,7 @@ const isActive = (path: string) => {
                 aria-label="archives"
               >
                 <IconArchive class="hidden sm:inline-block" />
-                <span class="sm:sr-only">Archives</span>
+                <span class="sm:sr-only">Ημερολόγιο</span>
               </LinkButton>
             </li>
           )
@@ -119,7 +119,7 @@ const isActive = (path: string) => {
             aria-label="search"
           >
             <IconSearch />
-            <span class="sr-only">Search</span>
+            <span class="sr-only">Αναζήτηση</span>
           </LinkButton>
         </li>
         {
