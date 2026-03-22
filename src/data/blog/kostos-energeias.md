@@ -13,9 +13,9 @@ tags:
 ogImage: "../../assets/images/sun-energy.png"
 ---
 
-Αναρωτιέστε **ποιο είναι το πραγματικό κόστος ενέργειας στην Ελλάδα** σε σχέση με την υπόλοιπη Ευρώπη; ⚡🌍 
+Αναρωτιέστε **ποιο είναι το πραγματικό κόστος ενέργειας στην Ελλάδα** σε σχέση με την υπόλοιπη Ευρώπη; ⚡🌍
 
-Η ενεργειακή κρίση και οι διακυμάνσεις των αγορών έχουν κάνει την τιμή της μεγαβατώρας (MWh) καθοριστικό παράγοντα για τα νοικοκυριά και τις επιχειρήσεις. 
+Η ενεργειακή κρίση και οι διακυμάνσεις των αγορών έχουν κάνει την τιμή της μεγαβατώρας (MWh) καθοριστικό παράγοντα για τα νοικοκυριά και τις επιχειρήσεις.
 
 Παρακάτω δημιουργήσαμε έναν ζωντανό πίνακα, ο οποίος ενημερώνεται **καθημερινά** και αυτόματα με τις τρέχουσες (day-ahead) τιμές χονδρικής ηλεκτρικής ενέργειας. Με αυτόν τον τρόπο, μπορείτε με μια ματιά να συγκρίνετε πώς κυμαίνονται οι τιμές ρεύματος στην Ελλάδα 🇬🇷 συγκριτικά με τις υπόλοιπες Ευρωπαϊκές χώρες 💶💡.
 
@@ -46,7 +46,6 @@ ogImage: "../../assets/images/sun-energy.png"
 
 *Σημείωση: Οι παραπάνω τιμές αποτελούν τον ημερήσιο μέσο όρο των ωριαίων τιμών του Χρηματιστηρίου Ενέργειας κάθε περιοχής. Αντλούνται σε πραγματικό χρόνο από την πλατφόρμα Transparency του ENTSO-E (μέσω Energy-Charts). Τα ιστορικά δεδομένα του προηγούμενου μήνα υπολογίζονται δυναμικά.*
 
-<!-- Client-side script to fetch the daily average prices dynamically -->
 <script>
   (async function() {
     const zoneNames = {
@@ -66,7 +65,7 @@ ogImage: "../../assets/images/sun-energy.png"
     const pad = n => n.toString().padStart(2, '0');
     const now = new Date();
     let prevYear = now.getFullYear();
-    let prevMonth = now.getMonth(); // 0-indexed, so getMonth() is the previous month (if now=March(2), prev=Feb(1))
+    let prevMonth = now.getMonth(); 
     if (prevMonth === 0) {
       prevMonth = 12;
       prevYear--;
@@ -81,35 +80,49 @@ ogImage: "../../assets/images/sun-energy.png"
     // Environment-aware proxy routing
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const getProxyUrl = (targetUrl) => {
-      // Local dev uses public proxy (throttled). Production uses blazing fast 100% reliable CF Edge.
       return isLocalhost 
         ? `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`
         : `/api/energy-proxy?target=${encodeURIComponent(targetUrl)}`;
     };
 
+    // Helper function: Fetch with Exponential Backoff Retries
+    async function fetchWithRetry(targetUrl, maxRetries = 3) {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        const res = await fetch(getProxyUrl(targetUrl));
+        
+        if (res.status === 429) {
+          const waitTime = attempt * 3000;
+          console.warn(`⏳ Rate limited. Retrying in ${waitTime}ms (Attempt ${attempt}/${maxRetries})...`);
+          await new Promise(r => setTimeout(r, waitTime));
+          continue; 
+        }
+        
+        if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+        return await res.json();
+      }
+      throw new Error("Max retries reached due to 429 Rate Limits");
+    }
+
     try {
       const results = [];
       const zonesArr = Object.keys(zoneNames);
       
-      // STEP 1: Fetch TODAY's data in chunks
+      // STEP 1: Fetch TODAY's data
       for (let i = 0; i < zonesArr.length; i += 4) {
         const chunk = zonesArr.slice(i, i + 4);
-        const chunkPromises = chunk.map(zoneCode => {
-          // Append &v=2 to completely bypass the old broken Cloudflare 429 cache
-          const targetUrl = `https://api.energy-charts.info/price?bzn=${zoneCode}&v=2`;
-          return fetch(getProxyUrl(targetUrl))
-            .then(res => {
-              if (res.status === 429) throw new Error("Rate Limited");
-              return res.json();
-            })
-            .then(data => {
-              if (data && data.price && data.price.length > 0) {
-                const avg = data.price.reduce((a, b) => a + b, 0) / data.price.length;
-                return { code: zoneCode, price: avg, source: "ENTSO-E" };
-              }
-              return { code: zoneCode, price: null, source: "N/A" };
-            })
-            .catch((err) => ({ code: zoneCode, price: null }));
+        const chunkPromises = chunk.map(async (zoneCode) => {
+          // Removed &v=2 to allow proper caching
+          const targetUrl = `https://api.energy-charts.info/price?bzn=${zoneCode}`;
+          try {
+            const data = await fetchWithRetry(targetUrl);
+            if (data && data.price && data.price.length > 0) {
+              const avg = data.price.reduce((a, b) => a + b, 0) / data.price.length;
+              return { code: zoneCode, price: avg, source: "ENTSO-E" };
+            }
+            return { code: zoneCode, price: null, source: "N/A" };
+          } catch (err) {
+            return { code: zoneCode, price: null };
+          }
         });
         
         const chunkResults = await Promise.allSettled(chunkPromises);
@@ -119,7 +132,6 @@ ogImage: "../../assets/images/sun-energy.png"
           }
         });
         
-        // Wait gracefully between chunks of today's prices to prevent proxy fatigue
         if (i + 4 < zonesArr.length) {
           await new Promise(r => setTimeout(r, 600)); 
         }
@@ -154,37 +166,17 @@ ogImage: "../../assets/images/sun-energy.png"
       tbody.innerHTML = html;
       document.getElementById("prev-month-header").innerText = "Μέσος: " + prevMonthName;
 
-      
-// STEP 2: Asynchronously fetch PREVIOUS MONTH's data
+      // STEP 2: Asynchronously fetch PREVIOUS MONTH's data
       (async function fetchPreviousMonth() {
         // Strict cooldown before starting historical data
         await new Promise(r => setTimeout(r, 2500));
-
-        // Helper function: Fetch with Exponential Backoff Retries
-        async function fetchWithRetry(targetUrl, maxRetries = 3) {
-          for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            const res = await fetch(getProxyUrl(targetUrl));
-            
-            if (res.status === 429) {
-              // If rate limited, wait 3s, then 6s, then 9s before trying again
-              const waitTime = attempt * 3000;
-              console.warn(`⏳ Rate limited on ${targetUrl}. Retrying in ${waitTime}ms (Attempt ${attempt}/${maxRetries})...`);
-              await new Promise(r => setTimeout(r, waitTime));
-              continue; // Try the loop again
-            }
-            
-            if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-            return await res.json();
-          }
-          throw new Error("Max retries reached due to 429 Rate Limits");
-        }
 
         // Fetch sequentially (one by one) to avoid triggering burst limits
         for (const item of validData) {
           const td = document.getElementById("prev-" + item.code);
           if (!td) continue;
 
-          // REMOVED &v=2 so Energy-Charts can serve this safely from their own CDN
+          // Removed &v=2 so Energy-Charts can serve this safely
           const targetUrl = `https://api.energy-charts.info/price?bzn=${item.code}&start=${startStr}&end=${endStr}`;
           
           try {
@@ -204,4 +196,11 @@ ogImage: "../../assets/images/sun-energy.png"
           await new Promise(r => setTimeout(r, 400));
         }
       })();
+
+    // The missing closing brackets are safely restored here:
+    } catch (error) {
+      console.error("Error fetching energy prices:", error);
+      tbody.innerHTML = "<tr><td colspan=\"4\" class=\"text-center py-6 text-red-500\">❌ Σφάλμα κατά τη φόρτωση δεδομένων.</td></tr>";
+    }
+  })();
 </script>
