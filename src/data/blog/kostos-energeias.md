@@ -48,13 +48,7 @@ ogImage: "../../assets/images/sun-energy.png"
 <script>
   (async function() {
     const zoneNames = {
-      "GR": "Ελλάδα 🇬🇷", "DE-LU": "Γερμανία/Λουξεμβούργο 🇩🇪🇱🇺", "FR": "Γαλλία 🇫🇷",
-      "IT-North": "Ιταλία (Βόρεια) 🇮🇹", "ES": "Ισπανία 🇪🇸", "AT": "Αυστρία 🇦🇹",
-      "BE": "Βέλγιο 🇧🇪", "NL": "Ολλανδία 🇳🇱", "PL": "Πολωνία 🇵🇱", "PT": "Πορτογαλία 🇵🇹",
-      "RO": "Ρουμανία 🇷🇴", "BG": "Βουλγαρία 🇧🇬", "HU": "Ουγγαρία 🇭🇺", "CZ": "Τσεχία 🇨🇿",
-      "SK": "Σλοβακία 🇸🇰", "SI": "Σλοβενία 🇸🇮", "HR": "Κροατία 🇭🇷", "RS": "Σερβία 🇷🇸",
-      "CH": "Ελβετία 🇨🇭", "DK1": "Δανία 🇩🇰", "FI": "Φινλανδία 🇫🇮", "EE": "Εσθονία 🇪🇪",
-      "LT": "Λιθουανία 🇱🇹", "LV": "Λετονία 🇱🇻"
+      "GR": "Ελλάδα 🇬🇷"
     };
 
     const tbody = document.getElementById("energy-tbody");
@@ -79,7 +73,10 @@ ogImage: "../../assets/images/sun-energy.png"
               }
               return { code: zoneCode, price: null, source: "N/A" };
             })
-            .catch(() => ({ code: zoneCode, price: null }))
+            .catch((err) => {
+              console.error("Error fetching " + zoneCode + ":", err);
+              return { code: zoneCode, price: null };
+            })
         );
         const chunkResults = await Promise.allSettled(chunkPromises);
         results.push(...chunkResults.map(r => r.status === "fulfilled" ? r.value : { code: "ERR", price: null }));
