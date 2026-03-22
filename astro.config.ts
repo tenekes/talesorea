@@ -4,28 +4,46 @@ import tailwind from "@astrojs/tailwind";
 import sitemap from "@astrojs/sitemap";
 import remarkToc from "remark-toc";
 import remarkCollapse from "remark-collapse";
+import react from "@astrojs/react";
+
 import {
   transformerNotationDiff,
   transformerNotationHighlight,
   transformerNotationWordHighlight,
 } from "@shikijs/transformers";
+
 import { transformerFileName } from "./src/utils/transformers/fileName";
 import { SITE } from "./src/config";
 
-import react from "@astrojs/react";
-
-// https://astro.build/config
 export default defineConfig({
   site: SITE.website,
+
+  // Cloudflare static deployment
   adapter: cloudflare(),
-  output: "static", // AstroPaper is a static-first theme
-  integrations: [tailwind({
-    applyBaseStyles: false, // CRITICAL: AstroPaper handles its own CSS imports
-  }), sitemap({
-    filter: page => SITE.showArchives || !page.endsWith("/archives"),
-  }), react()],
+  output: "static",
+
+  integrations: [
+    react(),
+    tailwind({
+      applyBaseStyles: false,
+    }),
+    sitemap({
+      filter: (page) => SITE.showArchives || !page.endsWith("/archives"),
+    }),
+  ],
+
+  // TinaCMS / Cloudflare safe: disable native-resvg
+  image: {
+    service: {
+      entrypoint: "astro/assets/services/noop",
+    },
+  },
+
   markdown: {
-    remarkPlugins: [remarkToc, [remarkCollapse, { test: "Table of contents" }]],
+    remarkPlugins: [
+      remarkToc,
+      [remarkCollapse, { test: "Table of contents" }],
+    ],
     shikiConfig: {
       themes: { light: "min-light", dark: "night-owl" },
       defaultColor: false,
@@ -38,10 +56,7 @@ export default defineConfig({
       ],
     },
   },
-  image: {
-    responsiveStyles: true,
-    layout: "constrained",
-  },
+
   env: {
     schema: {
       PUBLIC_GOOGLE_SITE_VERIFICATION: envField.string({
@@ -51,6 +66,7 @@ export default defineConfig({
       }),
     },
   },
+
   experimental: {
     fonts: [
       {
