@@ -97,7 +97,10 @@ ogImage: "../../assets/images/sun-energy.png"
         const chunkPromises = chunk.map(zoneCode => {
           const targetUrl = `https://api.energy-charts.info/price?bzn=${zoneCode}`;
           return fetch(getProxyUrl(targetUrl))
-            .then(res => res.json())
+            .then(res => {
+              if (res.status === 429) throw new Error("Rate Limited");
+              return res.json();
+            })
             .then(data => {
               if (data && data.price && data.price.length > 0) {
                 const avg = data.price.reduce((a, b) => a + b, 0) / data.price.length;
@@ -115,8 +118,9 @@ ogImage: "../../assets/images/sun-energy.png"
           }
         });
         
-        if (i + 4 < zonesArr.length && isLocalhost) {
-          await new Promise(r => setTimeout(r, 600)); // Stricter delay for local public proxy
+        // Wait gracefully between chunks of today's prices to prevent proxy fatigue
+        if (i + 4 < zonesArr.length) {
+          await new Promise(r => setTimeout(r, 600)); 
         }
       }
       
@@ -151,8 +155,8 @@ ogImage: "../../assets/images/sun-energy.png"
 
       // STEP 2: Asynchronously fetch PREVIOUS MONTH's data
       (async function fetchPreviousMonth() {
-        // Strict cooldown for local public proxy to avoid 429 entirely
-        if (isLocalhost) await new Promise(r => setTimeout(r, 2500));
+        // Strict cooldown to avoid 429 entirely after fetching today's 24 countries
+        await new Promise(r => setTimeout(r, 2500));
 
         // Using chunks of 3 for maximum safety
         for (let i = 0; i < validData.length; i += 3) {
@@ -181,8 +185,9 @@ ogImage: "../../assets/images/sun-energy.png"
           
           await Promise.allSettled(chunkPromises);
           
-          if (i + 3 < validData.length && isLocalhost) {
-            await new Promise(r => setTimeout(r, 1500)); // 1.5s delay between batches explicitly for local proxy
+          // Throttling 1.5 seconds between every 3 countries for absolutely zero proxy errors
+          if (i + 3 < validData.length) {
+            await new Promise(r => setTimeout(r, 1500)); 
           }
         }
       })();
