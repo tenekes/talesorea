@@ -39,13 +39,11 @@ ogImage: "../../assets/images/sun-energy.png"
 *Σημείωση: Οι παραπάνω τιμές αποτελούν τον ημερήσιο μέσο όρο των ωριαίων τιμών του Χρηματιστηρίου Ενέργειας κάθε περιοχής. Αντλούνται σε πραγματικό χρόνο από την πλατφόρμα Transparency του ENTSO-E (μέσω Energy-Charts). Τα ιστορικά δεδομένα του προηγούμενου μήνα υπολογίζονται δυναμικά.*
 
 <script>
-  // Wrap everything in Astro's page-load event to handle View Transitions properly
   document.addEventListener('astro:page-load', () => {
     const tbody = document.getElementById("energy-tbody");
     if (!tbody || tbody.dataset.running === "true") return; 
-    tbody.dataset.running = "true"; // Prevent double execution
+    tbody.dataset.running = "true"; 
 
-    // 🔴 THE KILL SWITCH: If the user navigates away, stop the loop!
     let isPageActive = true;
     document.addEventListener('astro:before-preparation', () => {
       isPageActive = false; 
@@ -75,7 +73,6 @@ ogImage: "../../assets/images/sun-energy.png"
 
     const zonesArr = Object.keys(zoneNames);
 
-    // Render the table instantly
     let initialHtml = "";
     zonesArr.forEach(code => {
       const isGreece = code === "GR";
@@ -99,19 +96,36 @@ ogImage: "../../assets/images/sun-energy.png"
         : `/api/energy-proxy?target=${encodeURIComponent(targetUrl)}`;
     };
 
-    async function fetchWithRetry(targetUrl, maxRetries = 3) {
+    // 🔥 UPGRADED FETCH: Now rejects empty arrays and breaks the cache!
+    async function fetchWithRetry(targetUrl, maxRetries = 4) {
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        if (!isPageActive) return null; // Abort if user left page
+        if (!isPageActive) return null; 
         try {
-          const res = await fetch(getProxyUrl(targetUrl));
+          // If we failed before, append a random timestamp to bypass the Cloudflare cache
+          const urlToFetch = attempt > 1 ? `${targetUrl}&cb=${Date.now()}` : targetUrl;
+          
+          const res = await fetch(getProxyUrl(urlToFetch));
+          
           if (res.status === 429) {
             await new Promise(r => setTimeout(r, attempt * 3000));
             continue; 
           }
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return await res.json();
+          
+          const data = await res.json();
+          
+          // REJECT EMPTY DATA!
+          if (!data || !data.price || data.price.length === 0) {
+            console.warn(`⚠️ API returned empty data for ${targetUrl}. Bypassing cache to try again...`);
+            throw new Error("EmptyData");
+          }
+          
+          return data;
         } catch (err) {
-          if (attempt === maxRetries) throw err;
+          if (attempt === maxRetries) {
+            if (err.message === "EmptyData") return null; // Finally give up and show N/A
+            throw err; // Show Σφάλμα
+          }
           await new Promise(r => setTimeout(r, 2000));
         }
       }
@@ -128,12 +142,10 @@ ogImage: "../../assets/images/sun-energy.png"
       tbody.append(...rows);
     }
 
-    // Launch background fetch
     (async function processQueue() {
       try {
-        // Step A: Today's Data (Strictly ONE by ONE)
         for (const code of zonesArr) {
-          if (!isPageActive) return; // Stop entirely if user navigated away
+          if (!isPageActive) return; 
           
           const td = document.getElementById(`today-${code}`);
           const row = td.closest('tr');
@@ -149,14 +161,13 @@ ogImage: "../../assets/images/sun-energy.png"
           } catch (err) {
             td.innerText = "Σφάλμα";
           }
-          await new Promise(r => setTimeout(r, 300)); // Tiny 300ms breather
+          await new Promise(r => setTimeout(r, 300)); 
         }
         
         if (isPageActive) sortTable();
 
-        // Step B: Historical Data (Strictly ONE by ONE)
         for (const code of zonesArr) {
-          if (!isPageActive) return; // Stop entirely if user navigated away
+          if (!isPageActive) return; 
           
           const td = document.getElementById(`prev-${code}`);
           try {
@@ -165,12 +176,12 @@ ogImage: "../../assets/images/sun-energy.png"
               const avg = data.price.reduce((a, b) => a + b, 0) / data.price.length;
               td.innerText = avg.toFixed(2) + " €";
             } else {
-              td.innerText = "N/A";
+              td.innerText = "N/A"; // If it still fails after 4 cache-busted retries, the data truly doesn't exist today.
             }
           } catch (err) {
             td.innerText = "Σφάλμα";
           }
-          await new Promise(r => setTimeout(r, 800)); // 800ms breather
+          await new Promise(r => setTimeout(r, 800)); 
         }
 
       } catch (error) {
