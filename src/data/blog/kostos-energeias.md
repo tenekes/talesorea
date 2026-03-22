@@ -47,60 +47,52 @@ ogImage: "../../assets/images/sun-energy.png"
 <!-- Client-side script to fetch the daily average prices dynamically -->
 <script>
   (async function() {
-    const zones = [
-      { code: "GR", name: "Ελλάδα 🇬🇷" },
-      { code: "DE-LU", name: "Γερμανία/Λουξεμβούργο 🇩🇪🇱🇺" },
-      { code: "FR", name: "Γαλλία 🇫🇷" },
-      { code: "IT-North", name: "Ιταλία (Βόρεια) 🇮🇹" },
-      { code: "ES", name: "Ισπανία 🇪🇸" },
-      { code: "AT", name: "Αυστρία 🇦🇹" },
-      { code: "BE", name: "Βέλγιο 🇧🇪" },
-      { code: "NL", name: "Ολλανδία 🇳🇱" },
-      { code: "PL", name: "Πολωνία 🇵🇱" },
-      { code: "PT", name: "Πορτογαλία 🇵🇹" },
-      { code: "RO", name: "Ρουμανία 🇷🇴" },
-      { code: "BG", name: "Βουλγαρία 🇧🇬" },
-      { code: "HU", name: "Ουγγαρία 🇭🇺" },
-      { code: "CZ", name: "Τσεχία 🇨🇿" },
-      { code: "SK", name: "Σλοβακία 🇸🇰" },
-      { code: "SI", name: "Σλοβενία 🇸🇮" },
-      { code: "HR", name: "Κροατία 🇭🇷" },
-      { code: "RS", name: "Σερβία 🇷🇸" },
-      { code: "CH", name: "Ελβετία 🇨🇭" },
-      { code: "DK1", name: "Δανία 🇩🇰" },
-      { code: "FI", name: "Φινλανδία 🇫🇮" },
-      { code: "EE", name: "Εσθονία 🇪🇪" },
-      { code: "LT", name: "Λιθουανία 🇱🇹" },
-      { code: "LV", name: "Λετονία 🇱🇻" }
-    ];
+    const zoneNames = {
+      "GR": "Ελλάδα 🇬🇷", "DE-LU": "Γερμανία/Λουξεμβούργο 🇩🇪🇱🇺", "FR": "Γαλλία 🇫🇷",
+      "IT-North": "Ιταλία (Βόρεια) 🇮🇹", "ES": "Ισπανία 🇪🇸", "AT": "Αυστρία 🇦🇹",
+      "BE": "Βέλγιο 🇧🇪", "NL": "Ολλανδία 🇳🇱", "PL": "Πολωνία 🇵🇱", "PT": "Πορτογαλία 🇵🇹",
+      "RO": "Ρουμανία 🇷🇴", "BG": "Βουλγαρία 🇧🇬", "HU": "Ουγγαρία 🇭🇺", "CZ": "Τσεχία 🇨🇿",
+      "SK": "Σλοβακία 🇸🇰", "SI": "Σλοβενία 🇸🇮", "HR": "Κροατία 🇭🇷", "RS": "Σερβία 🇷🇸",
+      "CH": "Ελβετία 🇨🇭", "DK1": "Δανία 🇩🇰", "FI": "Φινλανδία 🇫🇮", "EE": "Εσθονία 🇪🇪",
+      "LT": "Λιθουανία 🇱🇹", "LV": "Λετονία 🇱🇻"
+    };
 
     const tbody = document.getElementById("energy-tbody");
     if (!tbody) return;
     
     try {
-      // Create concurrent fetches for all required zones
-      const promises = zones.map(zone => 
-        fetch("https://api.allorigins.win/get?url=" + encodeURIComponent("https://api.energy-charts.info/price?bzn=" + zone.code))
-          .then(res => res.json())
-          .then(resData => {
-            if (!resData || !resData.contents) throw new Error("No contents");
-            
-            // allorigins.win encapsulates the response in a 'contents' string
-            const data = JSON.parse(resData.contents);
-            if (data && data.price && data.price.length > 0) {
-              const avg = data.price.reduce((a, b) => a + b, 0) / data.price.length;
-              return { ...zone, price: avg, source: "ENTSO-E" };
-            }
-            return { ...zone, price: null, source: "N/A" };
-          })
-          .catch(() => ({ ...zone, price: null, source: "N/A" }))
-      );
-
-      const results = await Promise.allSettled(promises);
+      const results = [];
+      const zonesArr = Object.keys(zoneNames);
+      
+      // Fetch in chunks of 4 to avoid rate limiting from the CORS proxy
+      for (let i = 0; i < zonesArr.length; i += 4) {
+        const chunk = zonesArr.slice(i, i + 4);
+        const chunkPromises = chunk.map(zoneCode => 
+          fetch("https://api.allorigins.win/get?url=" + encodeURIComponent("https://api.energy-charts.info/price?bzn=" + zoneCode))
+            .then(res => res.json())
+            .then(resData => {
+              if (!resData || !resData.contents) throw new Error("No contents");
+              const data = JSON.parse(resData.contents);
+              if (data && data.price && data.price.length > 0) {
+                const avg = data.price.reduce((a, b) => a + b, 0) / data.price.length;
+                return { code: zoneCode, price: avg, source: "ENTSO-E" };
+              }
+              return { code: zoneCode, price: null, source: "N/A" };
+            })
+            .catch(() => ({ code: zoneCode, price: null }))
+        );
+        const chunkResults = await Promise.allSettled(chunkPromises);
+        results.push(...chunkResults.map(r => r.status === "fulfilled" ? r.value : { code: "ERR", price: null }));
+        
+        // Wait 300ms between chunks to be polite to the proxy
+        if (i + 4 < zonesArr.length) {
+          await new Promise(r => setTimeout(r, 400));
+        }
+      }
       
       let validData = results
-        .filter(r => r.status === 'fulfilled' && r.value && r.value.price !== null)
-        .map(r => r.value);
+        .filter(item => item && item.price !== null)
+        .map(item => ({ ...item, name: zoneNames[item.code] || item.code }));
       
       // Sort by price (lowest to highest) so the viewer can easily see the ranking
       validData.sort((a, b) => a.price - b.price);
