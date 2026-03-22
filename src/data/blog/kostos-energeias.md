@@ -84,7 +84,7 @@ ogImage: "../../assets/images/sun-energy.png"
       // Local dev uses public proxy (throttled). Production uses blazing fast 100% reliable CF Edge.
       return isLocalhost 
         ? `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`
-        : `/api/proxy?target=${encodeURIComponent(targetUrl)}`;
+        : `/api/energy-proxy?target=${encodeURIComponent(targetUrl)}`;
     };
 
     try {
