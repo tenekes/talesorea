@@ -1,5 +1,4 @@
 import { defineConfig, envField, fontProviders } from "astro/config";
-import cloudflare from "@astrojs/cloudflare";
 import tailwind from "@astrojs/tailwind";
 import sitemap from "@astrojs/sitemap";
 import remarkToc from "remark-toc";
@@ -18,9 +17,8 @@ import { SITE } from "./src/config";
 export default defineConfig({
   site: SITE.website,
 
-  // Cloudflare static deployment
-  adapter: cloudflare(),
-  output: "static",
+  // Cloudflare Pages will automatically host this perfectly as a static site
+  // without needing a dedicated adapter.
 
   integrations: [
     react(),
@@ -31,13 +29,6 @@ export default defineConfig({
       filter: (page) => SITE.showArchives || !page.endsWith("/archives"),
     }),
   ],
-
-  // TinaCMS / Cloudflare safe: disable native-resvg
-  image: {
-    service: {
-      entrypoint: "astro/assets/services/noop",
-    },
-  },
 
   markdown: {
     remarkPlugins: [
