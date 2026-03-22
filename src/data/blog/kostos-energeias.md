@@ -80,9 +80,13 @@ ogImage: "../../assets/images/sun-energy.png"
     try {
       // Create concurrent fetches for all required zones
       const promises = zones.map(zone => 
-        fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent("https://api.energy-charts.info/price?bzn=" + zone.code))
+        fetch("https://api.allorigins.win/get?url=" + encodeURIComponent("https://api.energy-charts.info/price?bzn=" + zone.code))
           .then(res => res.json())
-          .then(data => {
+          .then(resData => {
+            if (!resData || !resData.contents) throw new Error("No contents");
+            
+            // allorigins.win encapsulates the response in a 'contents' string
+            const data = JSON.parse(resData.contents);
             if (data && data.price && data.price.length > 0) {
               const avg = data.price.reduce((a, b) => a + b, 0) / data.price.length;
               return { ...zone, price: avg, source: "ENTSO-E" };
