@@ -61,7 +61,6 @@ ogImage: "../../assets/images/sun-energy.png"
     const tbody = document.getElementById("energy-tbody");
     if (!tbody) return;
     
-    // Calculate Previous Month Dates dynamically
     const pad = n => n.toString().padStart(2, '0');
     const now = new Date();
     let prevYear = now.getFullYear();
@@ -77,52 +76,53 @@ ogImage: "../../assets/images/sun-energy.png"
     const monthNames = ["Ιανουάριος", "Φεβρουάριος", "Μάρτιος", "Απρίλιος", "Μάιος", "Ιούνιος", "Ιούλιος", "Αύγουστος", "Σεπτέμβριος", "Οκτώβριος", "Νοέμβριος", "Δεκέμβριος"];
     const prevMonthName = monthNames[prevMonth - 1] + " " + prevYear;
 
-    // DIRECT FETCH HELPER: No proxy, no massive delays.
-    async function fetchDirect(targetUrl, maxRetries = 2) {
+    // BRINGING THE PROXY BACK
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const getProxyUrl = (targetUrl) => {
+      return isLocalhost 
+        ? `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`
+        : `/api/energy-proxy?target=${encodeURIComponent(targetUrl)}`;
+    };
+
+    // Patient Fetcher with Exponential Backoff
+    async function fetchWithRetry(targetUrl, maxRetries = 5) {
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        const res = await fetch(targetUrl);
+        const res = await fetch(getProxyUrl(targetUrl));
+        
         if (res.status === 429) {
-          await new Promise(r => setTimeout(r, 1500)); // Short 1.5s wait
+          const waitTime = attempt * 4000; // Waits 4s, 8s, 12s...
+          console.warn(`⏳ Proxy Rate limited. Retrying in ${waitTime}ms...`);
+          await new Promise(r => setTimeout(r, waitTime));
           continue; 
         }
+        
         if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
         return await res.json();
       }
-      throw new Error("Rate Limited");
+      throw new Error("Max retries reached");
     }
 
     try {
       const results = [];
       const zonesArr = Object.keys(zoneNames);
       
-      // STEP 1: Fetch TODAY's data directly
-      for (let i = 0; i < zonesArr.length; i += 4) {
-        const chunk = zonesArr.slice(i, i + 4);
-        const chunkPromises = chunk.map(async (zoneCode) => {
-          const targetUrl = `https://api.energy-charts.info/price?bzn=${zoneCode}`;
-          try {
-            const data = await fetchDirect(targetUrl);
-            if (data && data.price && data.price.length > 0) {
-              const avg = data.price.reduce((a, b) => a + b, 0) / data.price.length;
-              return { code: zoneCode, price: avg, source: "ENTSO-E" };
-            }
-            return { code: zoneCode, price: null, source: "N/A" };
-          } catch (err) {
-            return { code: zoneCode, price: null };
+      // STEP 1: Fetch TODAY sequentially (One by one, not chunks)
+      for (const zoneCode of zonesArr) {
+        const targetUrl = `https://api.energy-charts.info/price?bzn=${zoneCode}`;
+        try {
+          const data = await fetchWithRetry(targetUrl);
+          if (data && data.price && data.price.length > 0) {
+            const avg = data.price.reduce((a, b) => a + b, 0) / data.price.length;
+            results.push({ code: zoneCode, price: avg, source: "ENTSO-E" });
           }
-        });
-        
-        const chunkResults = await Promise.allSettled(chunkPromises);
-        chunkResults.forEach(res => {
-          if (res.status === 'fulfilled' && res.value.price !== null) {
-            results.push(res.value);
-          }
-        });
+        } catch (err) {
+          console.error(`Skipping ${zoneCode} today due to error.`);
+        }
+        // Wait 500ms between each today request
+        await new Promise(r => setTimeout(r, 500));
       }
       
-      let validData = results
-        .filter(item => item && item.price !== null)
-        .map(item => ({ ...item, name: zoneNames[item.code] || item.code }));
+      let validData = results.map(item => ({ ...item, name: zoneNames[item.code] || item.code }));
       
       if (validData.length === 0) {
         tbody.innerHTML = "<tr><td colspan=\"4\" class=\"text-center py-6 text-red-500\">❌ Δεν βρέθηκαν διαθέσιμα δεδομένα αυτή τη στιγμή. Δοκιμάστε ξανά αργότερα.</td></tr>";
@@ -147,8 +147,11 @@ ogImage: "../../assets/images/sun-energy.png"
       tbody.innerHTML = html;
       document.getElementById("prev-month-header").innerText = "Μέσος: " + prevMonthName;
 
-      // STEP 2: Fetch PREVIOUS MONTH directly
+      // STEP 2: Fetch PREVIOUS MONTH sequentially
       (async function fetchPreviousMonth() {
+        // Deep breath before starting historical
+        await new Promise(r => setTimeout(r, 4000));
+
         for (const item of validData) {
           const td = document.getElementById("prev-" + item.code);
           if (!td) continue;
@@ -156,7 +159,7 @@ ogImage: "../../assets/images/sun-energy.png"
           const targetUrl = `https://api.energy-charts.info/price?bzn=${item.code}&start=${startStr}&end=${endStr}`;
           
           try {
-            const data = await fetchDirect(targetUrl);
+            const data = await fetchWithRetry(targetUrl);
             if (data && data.price && data.price.length > 0) {
               const avg = data.price.reduce((a, b) => a + b, 0) / data.price.length;
               td.innerText = avg.toFixed(2) + " €";
@@ -167,8 +170,8 @@ ogImage: "../../assets/images/sun-energy.png"
             td.innerText = "Σφάλμα";
           }
           
-          // Tiny 100ms breather, user IPs don't get punished like Cloudflare IPs
-          await new Promise(r => setTimeout(r, 100));
+          // Wait 1.5 full seconds between each historical request
+          await new Promise(r => setTimeout(r, 1500));
         }
       })();
 
