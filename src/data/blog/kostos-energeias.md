@@ -126,4 +126,4 @@ ogImage: "../../assets/images/sun-energy.png"
       tbody.innerHTML = "<tr><td colspan=\"3\" class=\"text-center py-6 text-red-500\">❌ Σφάλμα κατά τη φόρτωση δεδομένων.</td></tr>";
     }
   })();
-</script>
+</script> 
