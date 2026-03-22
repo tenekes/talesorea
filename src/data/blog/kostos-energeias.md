@@ -158,9 +158,9 @@ ogImage: "../../assets/images/sun-energy.png"
         // Strict cooldown to avoid 429 entirely after fetching today's 24 countries
         await new Promise(r => setTimeout(r, 2500));
 
-        // Using chunks of 3 for maximum safety
-        for (let i = 0; i < validData.length; i += 3) {
-          const chunk = validData.slice(i, i + 3);
+        // Using extremely safe chunks of 2 to ensure Energy-Charts never blocks the Cloudflare proxy IP
+        for (let i = 0; i < validData.length; i += 2) {
+          const chunk = validData.slice(i, i + 2);
           const chunkPromises = chunk.map(item => {
             const targetUrl = `https://api.energy-charts.info/price?bzn=${item.code}&start=${startStr}&end=${endStr}`;
             return fetch(getProxyUrl(targetUrl))
@@ -185,9 +185,9 @@ ogImage: "../../assets/images/sun-energy.png"
           
           await Promise.allSettled(chunkPromises);
           
-          // Throttling 1.5 seconds between every 3 countries for absolutely zero proxy errors
-          if (i + 3 < validData.length) {
-            await new Promise(r => setTimeout(r, 1500)); 
+          // Throttling 2 full seconds between every 2 countries for absolutely zero proxy errors
+          if (i + 2 < validData.length) {
+            await new Promise(r => setTimeout(r, 2000)); 
           }
         }
       })();

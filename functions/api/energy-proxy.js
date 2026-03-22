@@ -30,7 +30,13 @@ export async function onRequest({ request }) {
     // Today's data changes daily. Cache it on Cloudflare for 2 hours (7200 seconds).
     const cacheTime = isHistorical ? 86400 : 7200;
     
-    newResponse.headers.set("Cache-Control", `public, max-age=${cacheTime}`);
+    // CRITICAL FIX: Only apply the static cache if the remote energy API responds successfully!
+    // This prevents 429 (Too many requests) or 500 errors from becoming immortalized in the Edge network cache.
+    if (response.ok) {
+      newResponse.headers.set("Cache-Control", `public, max-age=${cacheTime}`);
+    } else {
+      newResponse.headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+    }
     
     return newResponse;
     
