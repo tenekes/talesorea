@@ -164,7 +164,22 @@ const nextPost =
 
     <!-- Cusdis Comments Section -->
     <div class="mt-8" data-pagefind-ignore>
+      <!-- Cusdis Global Greek Translation Map -->
+      <script is:inline>
+        window.CUSDIS_LOCALE = {
+          "powered_by": "Σύστημα Σχολίων",
+          "postbox_text": "Γράψτε το σχόλιό σας...",
+          "postbox_author": "Όνομα",
+          "postbox_email": "Email (προαιρετικό)",
+          "postbox_submit": "Αποστολή",
+          "reply_to": "Απάντηση στον/στην",
+          "cancel_reply": "Ακύρωση",
+          "reply_btn": "Απάντηση"
+        };
+      </script>
+
       <div id="cusdis_thread"
+        class="cusdis-container"
         data-host="https://cusdis.com"
         data-app-id="926df51b-5c0f-4ba7-9033-0cafba4e39c2"
         data-page-id={slugifyStr(post.id)}
@@ -304,3 +319,14 @@ const nextPost =
     window.scrollTo({ left: 0, top: 0, behavior: "instant" })
   );
 </script>
+
+<style>
+  /* Suppresses the unsightly iframe scrollbar induced by Windows/Edge browser rendering */
+  .cusdis-container :global(iframe) {
+    overflow: hidden !important;
+    scrollbar-width: none !important;
+  }
+  .cusdis-container :global(iframe)::-webkit-scrollbar {
+    display: none;
+  }
+</style>
