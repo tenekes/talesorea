@@ -4,7 +4,7 @@ export const SITE = {
   profile: "https://instagram.com",
   desc: "Ενημέρωση και νέα για πραγματικά και φανταστικά θέματα στον κόσμο",
   title: "Τα Λες Ωραία",
-  ogImage: "astropaper-og.jpg",
+  ogImage: "talesorea-logo.png",
   lightAndDarkMode: true,
   postPerIndex: 4,
   postPerPage: 4,
