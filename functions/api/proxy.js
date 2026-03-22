@@ -22,8 +22,15 @@ export async function onRequest({ request }) {
     newResponse.headers.set("Access-Control-Allow-Origin", "*");
     newResponse.headers.set("Access-Control-Allow-Methods", "GET, OPTIONS");
     
-    // Aggressive caching of 1 hour to heavily minimize external API load
-    newResponse.headers.set("Cache-Control", "public, max-age=3600");
+    // Aggressively cache data at the Cloudflare Edge layer!
+    // This turns Cloudflare into a massive global storage, preventing external crashes.
+    const isHistorical = target.includes("start=") && target.includes("end=");
+    
+    // Previous month data NEVER changes. Cache it on Cloudflare for 24 hours (86400 seconds).
+    // Today's data changes daily. Cache it on Cloudflare for 2 hours (7200 seconds).
+    const cacheTime = isHistorical ? 86400 : 7200;
+    
+    newResponse.headers.set("Cache-Control", `public, max-age=${cacheTime}`);
     
     return newResponse;
     
