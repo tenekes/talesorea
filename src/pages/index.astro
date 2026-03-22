@@ -45,15 +45,7 @@ const recentPosts = sortedPosts.filter(({ data }) => !data.featured);
         Χωρίς clickbait, χωρίς διαφημίσεις, χωρίς αλγορίθμους. Μόνο σοβαρή ενημέρωση για την τεχνολογία, την επιστήμη και την κοινωνία. Με σεβασμό στον αναγνώστη και την αλήθεια.
         Φανταστικά, μυθοπλαστικά γεγονότα ειναι πιθανό να συμβούν, αλλά δεν είναι σίγουρο. Αν συμβούν, θα ενημερωθείτε πρώτοι εδώ. Αν δεν συμβούν, θα έχετε διαβάσει μερικά καλά άρθρα. Τι καλύτερο από αυτό;
       </p>
-      <p class="mt-2">
-        Διαβάστε το
-        <LinkButton
-          class="underline decoration-dashed underline-offset-4 hover:text-accent"
-          href="https://github.com/satnaing/astro-paper#readme"
-        >
-          README
-        </LinkButton> for more info.
-      </p>
+
       {
         // only display if at least one social link is enabled
         SOCIALS.length > 0 && (
