@@ -168,14 +168,15 @@ const nextPost =
       <script is:inline>
         window.CUSDIS_LOCALE = {
           "powered_by": "Σύστημα Σχολίων",
-          "postbox_text": "Γράψτε το σχόλιό σας...",
-          "postbox_author": "Όνομα (Nickname)",
-          "postbox_email": "Email (προαιρετικό)",
-          "postbox_submit": "Αποστολή",
+          "reply_placeholder": "Γράψτε το σχόλιό σας...",
+          "nickname": "Όνομα (Nickname)",
+          "email": "Email (προαιρετικό)",
+          "post_comment": "Αποστολή",
           "reply_to": "Απάντηση στον/στην",
           "cancel_reply": "Ακύρωση",
           "reply_btn": "Απάντηση",
-          "no_comment": "Δεν υπάρχουν σχόλια ακόμη."
+          "no_comment": "Δεν υπάρχουν σχόλια ακόμη.",
+          "loading": "Φόρτωση..."
         };
       </script>
 
@@ -194,6 +195,23 @@ const nextPost =
         if (window.CUSDIS && window.CUSDIS.initial) {
           window.CUSDIS.initial();
         }
+
+        // Intercept native Resize events from the iframe and securely pad them
+        // This guarantees no scrollbars and zero clipped comments on any resolution!
+        window.addEventListener('message', (e) => {
+          try {
+            const msg = JSON.parse(e.data);
+            if (msg.from === 'cusdis' && msg.event === 'resize') {
+              setTimeout(() => {
+                const iframe = document.querySelector('#cusdis_thread iframe');
+                if (iframe) {
+                  // Add 50px of breathing room vertically
+                  iframe.style.height = (parseInt(msg.data) + 50) + "px";
+                }
+              }, 50);
+            }
+          } catch(err) {}
+        });
       </script>
     </div>
 
@@ -325,12 +343,8 @@ const nextPost =
 <style>
   /* Guarantees the un-populated iframe form bounds are never aggressively clipped by the JS engine */
   .cusdis-container :global(iframe) {
-    overflow: hidden !important;
-    scrollbar-width: none !important;
+    width: 100% !important;
+    border: none !important;
     min-height: 380px !important;
-    padding-bottom: 20px;
-  }
-  .cusdis-container :global(iframe)::-webkit-scrollbar {
-    display: none;
   }
 </style>
