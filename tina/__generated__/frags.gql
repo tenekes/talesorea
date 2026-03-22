@@ -1,6 +1,7 @@
 fragment PostParts on Post {
   __typename
   title
+  ogImage
   author
   pubDatetime
   description

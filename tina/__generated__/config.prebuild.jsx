@@ -5,25 +5,17 @@ var config_default = defineConfig({
   branch: "main",
   // Get this from tina.io
   clientId: process.env.TINA_PUBLIC_CLIENT_ID || "",
-  // Get this from tina.io
   token: process.env.TINA_TOKEN || "",
   build: {
     outputFolder: "admin",
     publicFolder: "public"
   },
-  // Uncomment to allow cross-origin requests from non-localhost origins
-  // during local development (e.g. GitHub Codespaces, Gitpod, Docker).
-  // Use 'private' to allow all private-network IPs (WSL2, Docker, etc.)
-  // server: {
-  //   allowedOrigins: ['https://your-codespace.github.dev'],
-  // },
   media: {
     tina: {
       mediaRoot: "images",
       publicFolder: "public"
     }
   },
-  // See docs on content modeling for more info on how to setup new content models: https://tina.io/docs/r/content-modelling-collections/
   schema: {
     collections: [
       {
@@ -32,10 +24,8 @@ var config_default = defineConfig({
         path: "src/data/blog",
         format: "md",
         ui: {
-          // This part fixes the -----.md issue
           filename: {
             readonly: false,
-            // Set to true if you want Tina to handle it automatically
             slugify: (values) => {
               return `${values?.title?.toLowerCase().replace(/ /g, "-") || "new-post"}`;
             }
@@ -48,7 +38,11 @@ var config_default = defineConfig({
             label: "Title",
             isTitle: true,
             required: true
-            // Forces you to type a title first
+          },
+          {
+            type: "image",
+            name: "ogImage",
+            label: "Post Image"
           },
           { type: "string", name: "author", label: "Author" },
           {
@@ -56,16 +50,28 @@ var config_default = defineConfig({
             name: "pubDatetime",
             label: "Date",
             required: true
-            // Stops Astro from crashing on empty dates
           },
           {
             type: "string",
             name: "description",
             label: "Description",
             required: true
-            // Stops Astro from crashing on empty descriptions
           },
-          { type: "string", name: "tags", label: "Tags", list: true },
+          {
+            type: "string",
+            name: "tags",
+            label: "Tags",
+            list: true,
+            options: [
+              { label: "\u03A6\u03B1\u03BD\u03C4\u03B1\u03C3\u03AF\u03B1", value: "\u03C6\u03B1\u03BD\u03C4\u03B1\u03C3\u03AF\u03B1" },
+              { label: "\u039C\u03C5\u03B8\u03BF\u03C0\u03BB\u03B1\u03C3\u03AF\u03B1", value: "\u03BC\u03C5\u03B8\u03BF\u03C0\u03BB\u03B1\u03C3\u03AF\u03B1" },
+              { label: "\u0395\u03B9\u03B4\u03AE\u03C3\u03B5\u03B9\u03C2", value: "\u03B5\u03B9\u03B4\u03AE\u03C3\u03B5\u03B9\u03C2" },
+              { label: "\u039D\u03AD\u03B1", value: "\u03BD\u03AD\u03B1" },
+              { label: "\u03A4\u03B5\u03C7\u03BD\u03BF\u03BB\u03BF\u03B3\u03AF\u03B1", value: "\u03C4\u03B5\u03C7\u03BD\u03BF\u03BB\u03BF\u03B3\u03AF\u03B1" },
+              { label: "\u039A\u03BF\u03B9\u03BD\u03C9\u03BD\u03B9\u03BA\u03AC", value: "\u03BA\u03BF\u03B9\u03BD\u03C9\u03BD\u03B9\u03BA\u03AC" },
+              { label: "\u0395\u03BD\u03B7\u03BC\u03AD\u03C1\u03C9\u03C3\u03B7", value: "\u03B5\u03BD\u03B7\u03BC\u03AD\u03C1\u03C9\u03C3\u03B7" }
+            ]
+          },
           { type: "boolean", name: "featured", label: "Featured Post" },
           { type: "boolean", name: "draft", label: "Draft" },
           { type: "rich-text", name: "body", label: "Body", isBody: true }
