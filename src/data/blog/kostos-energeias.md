@@ -95,7 +95,8 @@ ogImage: "../../assets/images/sun-energy.png"
       for (let i = 0; i < zonesArr.length; i += 4) {
         const chunk = zonesArr.slice(i, i + 4);
         const chunkPromises = chunk.map(zoneCode => {
-          const targetUrl = `https://api.energy-charts.info/price?bzn=${zoneCode}`;
+          // Append &v=2 to completely bypass the old broken Cloudflare 429 cache
+          const targetUrl = `https://api.energy-charts.info/price?bzn=${zoneCode}&v=2`;
           return fetch(getProxyUrl(targetUrl))
             .then(res => {
               if (res.status === 429) throw new Error("Rate Limited");
@@ -153,48 +154,54 @@ ogImage: "../../assets/images/sun-energy.png"
       tbody.innerHTML = html;
       document.getElementById("prev-month-header").innerText = "Μέσος: " + prevMonthName;
 
-      // STEP 2: Asynchronously fetch PREVIOUS MONTH's data
+      
+// STEP 2: Asynchronously fetch PREVIOUS MONTH's data
       (async function fetchPreviousMonth() {
-        // Strict cooldown to avoid 429 entirely after fetching today's 24 countries
+        // Strict cooldown before starting historical data
         await new Promise(r => setTimeout(r, 2500));
 
-        // Using extremely safe chunks of 2 to ensure Energy-Charts never blocks the Cloudflare proxy IP
-        for (let i = 0; i < validData.length; i += 2) {
-          const chunk = validData.slice(i, i + 2);
-          const chunkPromises = chunk.map(item => {
-            const targetUrl = `https://api.energy-charts.info/price?bzn=${item.code}&start=${startStr}&end=${endStr}`;
-            return fetch(getProxyUrl(targetUrl))
-              .then(res => {
-                if (!res.ok) throw new Error("Status " + res.status);
-                return res.json();
-              })
-              .then(data => {
-                const td = document.getElementById("prev-" + item.code);
-                if (data && data.price && data.price.length > 0) {
-                  const avg = data.price.reduce((a, b) => a + b, 0) / data.price.length;
-                  if (td) td.innerText = avg.toFixed(2) + " €";
-                } else {
-                  if (td) td.innerText = "N/A";
-                }
-              })
-              .catch(err => {
-                const td = document.getElementById("prev-" + item.code);
-                if (td) td.innerText = "Σφάλμα";
-              });
-          });
-          
-          await Promise.allSettled(chunkPromises);
-          
-          // Throttling 2 full seconds between every 2 countries for absolutely zero proxy errors
-          if (i + 2 < validData.length) {
-            await new Promise(r => setTimeout(r, 2000)); 
+        // Helper function: Fetch with Exponential Backoff Retries
+        async function fetchWithRetry(targetUrl, maxRetries = 3) {
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            const res = await fetch(getProxyUrl(targetUrl));
+            
+            if (res.status === 429) {
+              // If rate limited, wait 3s, then 6s, then 9s before trying again
+              const waitTime = attempt * 3000;
+              console.warn(`⏳ Rate limited on ${targetUrl}. Retrying in ${waitTime}ms (Attempt ${attempt}/${maxRetries})...`);
+              await new Promise(r => setTimeout(r, waitTime));
+              continue; // Try the loop again
+            }
+            
+            if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+            return await res.json();
           }
+          throw new Error("Max retries reached due to 429 Rate Limits");
+        }
+
+        // Fetch sequentially (one by one) to avoid triggering burst limits
+        for (const item of validData) {
+          const td = document.getElementById("prev-" + item.code);
+          if (!td) continue;
+
+          // REMOVED &v=2 so Energy-Charts can serve this safely from their own CDN
+          const targetUrl = `https://api.energy-charts.info/price?bzn=${item.code}&start=${startStr}&end=${endStr}`;
+          
+          try {
+            const data = await fetchWithRetry(targetUrl);
+            if (data && data.price && data.price.length > 0) {
+              const avg = data.price.reduce((a, b) => a + b, 0) / data.price.length;
+              td.innerText = avg.toFixed(2) + " €";
+            } else {
+              td.innerText = "N/A";
+            }
+          } catch (err) {
+            console.error(`Failed to load previous month for ${item.code}:`, err);
+            td.innerText = "Σφάλμα";
+          }
+          
+          // Tiny delay between successful requests to be polite to the API
+          await new Promise(r => setTimeout(r, 400));
         }
       })();
-
-    } catch (error) {
-      console.error("Error fetching energy prices:", error);
-      tbody.innerHTML = "<tr><td colspan=\"4\" class=\"text-center py-6 text-red-500\">❌ Σφάλμα κατά τη φόρτωση δεδομένων.</td></tr>";
-    }
-  })();
 </script>

@@ -1,47 +1,59 @@
 export async function onRequest({ request }) {
   const url = new URL(request.url);
   let target = url.searchParams.get("target");
-  
+
   if (!target) {
     return new Response("Missing target parameter", { status: 400 });
   }
 
+  // 1. Check Cloudflare's Edge Cache first
+  const cache = caches.default;
+  const cacheKey = new Request(target, request);
+  let cachedResponse = await cache.match(cacheKey);
+
+  if (cachedResponse) {
+    // Return cached response instantly without hitting Energy-Charts
+    return cachedResponse;
+  }
+
   try {
-    // Reconstruct full URL if it had multiple query params
     const targetUrl = new URL(target);
     url.searchParams.forEach((val, key) => {
       if (key !== 'target') targetUrl.searchParams.append(key, val);
     });
 
-    const response = await fetch(targetUrl.toString());
-    
-    // Clone response to modify headers
+    // 2. Add a User-Agent so Energy-Charts doesn't block you as a generic bot
+    const response = await fetch(targetUrl.toString(), {
+      headers: {
+        "User-Agent": "AstroEnergyDashboard/1.0 (Contact: your@email.com)",
+        "Accept": "application/json"
+      }
+    });
+
+    // If it's a 429, pass it back immediately so the frontend retry logic can handle it
+    if (response.status === 429) {
+      return new Response("Rate Limited", { status: 429, headers: { "Access-Control-Allow-Origin": "*" }});
+    }
+
     const newResponse = new Response(response.body, response);
-    
-    // Inject CORS headers to allow frontend fetching
     newResponse.headers.set("Access-Control-Allow-Origin", "*");
     newResponse.headers.set("Access-Control-Allow-Methods", "GET, OPTIONS");
-    
-    // Aggressively cache data at the Cloudflare Edge layer!
-    // This turns Cloudflare into a massive global storage, preventing external crashes.
-    const isHistorical = target.includes("start=") && target.includes("end=");
-    
-    // Previous month data NEVER changes. Cache it on Cloudflare for 24 hours (86400 seconds).
-    // Today's data changes daily. Cache it on Cloudflare for 2 hours (7200 seconds).
-    const cacheTime = isHistorical ? 86400 : 7200;
-    
-    // CRITICAL FIX: Only apply the static cache if the remote energy API responds successfully!
-    // This prevents 429 (Too many requests) or 500 errors from becoming immortalized in the Edge network cache.
+
+    // 3. Cache successful responses in Cloudflare
     if (response.ok) {
+      const isHistorical = target.includes("start=") && target.includes("end=");
+      const cacheTime = isHistorical ? 604800 : 7200; // 7 days for historical, 2 hours for today
+
       newResponse.headers.set("Cache-Control", `public, max-age=${cacheTime}`);
-    } else {
-      newResponse.headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+
+      // Store it in the Edge Cache for the next visitor!
+      await cache.put(cacheKey, newResponse.clone());
     }
-    
+
     return newResponse;
-    
+
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { 
+    return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { "Access-Control-Allow-Origin": "*" }
     });
