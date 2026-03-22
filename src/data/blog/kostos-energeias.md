@@ -2,14 +2,14 @@
 title: "Ποιο ειναι το κοστος ενεργειας στην Ελλαδα"
 description: "Σε σχεση με τις υπολοιπες Ευρωπαικες Χωρες"
 slug: "κοστος-ενεργειας"
-pubDatetime: 2026-03-22T15:50:20+02:00
+pubDatetime: 2026-03-22T15:50:20Z
 tags:
   - "Ενέργεια"
   - "Ελλάδα"
   - "Ευρώπη"
   - "Κόστος"
   - "Οικονομία"
-ogImage: "../../assets/images/sun-energy.png"
+ogImage: "/images/sun-energy.png"
 ---
 
 Αναρωτιέστε **ποιο είναι το πραγματικό κόστος ενέργειας στην Ελλάδα** σε σχέση με την υπόλοιπη Ευρώπη; ⚡🌍 
@@ -61,18 +61,44 @@ ogImage: "../../assets/images/sun-energy.png"
     if (!tbody) return;
     
     try {
-      // 100% Reliable Cloudflare Pages Function endpoint
-      const res = await fetch("/api/energy");
-      if (!res.ok) throw new Error("API Route /api/energy not deployed yet");
+      const results = [];
+      const zonesArr = Object.keys(zoneNames);
       
-      const results = await res.json();
+      // Fetch in chunks of 4 to avoid rate limiting from the CORS proxy
+      for (let i = 0; i < zonesArr.length; i += 4) {
+        const chunk = zonesArr.slice(i, i + 4);
+        const chunkPromises = chunk.map(zoneCode => 
+          fetch("https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent("https://api.energy-charts.info/price?bzn=" + zoneCode))
+            .then(res => res.json())
+            .then(data => {
+              if (data && data.price && data.price.length > 0) {
+                const avg = data.price.reduce((a, b) => a + b, 0) / data.price.length;
+                return { code: zoneCode, price: avg, source: "ENTSO-E" };
+              }
+              return { code: zoneCode, price: null, source: "N/A" };
+            })
+            .catch((err) => {
+              console.error("Error fetching " + zoneCode + ":", err);
+              return { code: zoneCode, price: null };
+            })
+        );
+        const chunkResults = await Promise.allSettled(chunkPromises);
+        chunkResults.forEach(res => {
+          if (res.status === 'fulfilled' && res.value.price !== null) {
+            results.push(res.value);
+          }
+        });
+        
+        // Wait 300ms between chunks to be polite to the proxy
+        if (i + 4 < zonesArr.length) {
+          await new Promise(r => setTimeout(r, 400));
+        }
+      }
       
       let validData = results
         .filter(item => item && item.price !== null)
         .map(item => ({ ...item, name: zoneNames[item.code] || item.code }));
       
-      validData.sort((a, b) => a.price - b.price);
-
       if (validData.length === 0) {
         tbody.innerHTML = "<tr><td colspan=\"3\" class=\"text-center py-6 text-red-500\">❌ Δεν βρέθηκαν διαθέσιμα δεδομένα αυτή τη στιγμή. Δοκιμάστε ξανά αργότερα.</td></tr>";
         return;
@@ -80,11 +106,6 @@ ogImage: "../../assets/images/sun-energy.png"
 
       // Sort by price (lowest to highest) so the viewer can easily see the ranking
       validData.sort((a, b) => a.price - b.price);
-
-      if (validData.length === 0) {
-        tbody.innerHTML = "<tr><td colspan=\"3\" class=\"text-center py-6 text-red-500\">❌ Δεν βρέθηκαν διαθέσιμα δεδομένα αυτή τη στιγμή. Δοκιμάστε ξανά αργότερα.</td></tr>";
-        return;
-      }
 
       // Render the HTML rows using Astropaper skin CSS variables gracefully
       let html = "";
@@ -110,4 +131,4 @@ ogImage: "../../assets/images/sun-energy.png"
       tbody.innerHTML = "<tr><td colspan=\"3\" class=\"text-center py-6 text-red-500\">❌ Σφάλμα κατά τη φόρτωση δεδομένων.</td></tr>";
     }
   })();
-</script> 
+</script>
