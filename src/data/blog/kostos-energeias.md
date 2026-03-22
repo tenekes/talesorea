@@ -9,6 +9,7 @@ tags:
   - "Ευρώπη"
   - "Κόστος"
   - "Οικονομία"
+  - "ΔΕΗ"
 ogImage: "/assets/images/sun-energy.png"
 ---
 
