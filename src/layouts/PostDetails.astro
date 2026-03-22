@@ -164,6 +164,21 @@ const nextPost =
 
     <!-- Cusdis Comments Section -->
     <div class="mt-8" data-pagefind-ignore>
+      <!-- Synchronous Locale Definition -->
+      <script is:inline>
+        window.CUSDIS_LOCALE = {
+          "powered_by": "Σύστημα Σχολίων",
+          "postbox_text": "Γράψτε το σχόλιό σας...",
+          "postbox_author": "Όνομα (Nickname)",
+          "postbox_email": "Email (προαιρετικό)",
+          "postbox_submit": "Αποστολή",
+          "reply_to": "Απάντηση στον/στην",
+          "cancel_reply": "Ακύρωση",
+          "reply_btn": "Απάντηση",
+          "no_comment": "Δεν υπάρχουν σχόλια ακόμη."
+        };
+      </script>
+
       <div id="cusdis_thread"
         class="cusdis-container"
         data-host="https://cusdis.com"
@@ -173,48 +188,11 @@ const nextPost =
         data-page-title={title}
         data-theme="auto"
       ></div>
-      <script is:inline async defer src="https://cusdis.com/js/cusdis.es.js"></script>
+      <script is:inline defer src="https://cusdis.com/js/cusdis.es.js"></script>
       <script is:inline data-astro-rerun>
-        // 1. Force Greek Translation payload permanently onto the global window.
-        // Putting this inside the rerun block guarantees it never gets wiped by Astro SPA navigation.
-        window.CUSDIS_LOCALE = {
-          "powered_by": "Σύστημα Σχολίων",
-          "postbox_text": "Γράψτε το σχόλιό σας...",
-          "postbox_author": "Όνομα (Nickname)",
-          "postbox_email": "Email (προαιρετικό)",
-          "postbox_submit": "Αποστολή",
-          "reply_to": "Απάντηση στον/στην",
-          "cancel_reply": "Ακύρωση",
-          "reply_btn": "Απάντηση"
-        };
-
-        // 2. Initialize the widget
+        // Trigger widget manually on Astro SPA Navigation 
         if (window.CUSDIS && window.CUSDIS.initial) {
           window.CUSDIS.initial();
-          
-          // 3. Aggressive Iframe Scrollbar Patch
-          // The Cusdis backend miscalculates height perfectly on Windows/Edge causing a 1px overflow scrollbar.
-          // We use a MutationObserver to watch the script resize the iframe, and forcefully inject 30px padding.
-          setTimeout(() => {
-            const iframe = document.querySelector('#cusdis_thread iframe');
-            if (iframe) {
-              iframe.setAttribute('scrolling', 'no');
-              
-              const observer = new MutationObserver((mutations) => {
-                mutations.forEach((mu) => {
-                  if (mu.type === 'attributes' && mu.attributeName === 'style') {
-                    const currentHeight = parseInt(iframe.style.height);
-                    // Prevent infinite observer loop by checking if we already patched it with calc()
-                    if (currentHeight > 0 && !iframe.style.height.includes('calc')) {
-                      iframe.style.height = `calc(${currentHeight}px + 30px)`;
-                    }
-                  }
-                });
-              });
-              
-              observer.observe(iframe, { attributes: true });
-            }
-          }, 800);
         }
       </script>
     </div>
@@ -345,10 +323,12 @@ const nextPost =
 </script>
 
 <style>
-  /* Suppresses the unsightly iframe scrollbar induced by Windows/Edge browser rendering */
+  /* Guarantees the un-populated iframe form bounds are never aggressively clipped by the JS engine */
   .cusdis-container :global(iframe) {
     overflow: hidden !important;
     scrollbar-width: none !important;
+    min-height: 380px !important;
+    padding-bottom: 20px;
   }
   .cusdis-container :global(iframe)::-webkit-scrollbar {
     display: none;
