@@ -39,7 +39,18 @@ ogImage: "../../assets/images/sun-energy.png"
 *Σημείωση: Οι παραπάνω τιμές αποτελούν τον ημερήσιο μέσο όρο των ωριαίων τιμών του Χρηματιστηρίου Ενέργειας κάθε περιοχής. Αντλούνται σε πραγματικό χρόνο από την πλατφόρμα Transparency του ENTSO-E (μέσω Energy-Charts). Τα ιστορικά δεδομένα του προηγούμενου μήνα υπολογίζονται δυναμικά.*
 
 <script>
-  (async function() {
+  // Wrap everything in Astro's page-load event to handle View Transitions properly
+  document.addEventListener('astro:page-load', () => {
+    const tbody = document.getElementById("energy-tbody");
+    if (!tbody || tbody.dataset.running === "true") return; 
+    tbody.dataset.running = "true"; // Prevent double execution
+
+    // 🔴 THE KILL SWITCH: If the user navigates away, stop the loop!
+    let isPageActive = true;
+    document.addEventListener('astro:before-preparation', () => {
+      isPageActive = false; 
+    }, { once: true });
+
     const zoneNames = {
       "GR": "Ελλάδα 🇬🇷", "DE-LU": "Γερμανία/Λουξεμβούργο 🇩🇪🇱🇺", "FR": "Γαλλία 🇫🇷",
       "IT-North": "Ιταλία (Βόρεια) 🇮🇹", "ES": "Ισπανία 🇪🇸", "AT": "Αυστρία 🇦🇹",
@@ -50,11 +61,6 @@ ogImage: "../../assets/images/sun-energy.png"
       "LT": "Λιθουανία 🇱🇹", "LV": "Λετονία 🇱🇻"
     };
 
-    const tbody = document.getElementById("energy-tbody");
-    if (!tbody || tbody.dataset.initialized) return; // Prevent Astro View Transitions from running it twice
-    tbody.dataset.initialized = "true";
-    
-    // 1. Calculate Dates
     const pad = n => n.toString().padStart(2, '0');
     const now = new Date();
     let prevYear = now.getFullYear();
@@ -69,7 +75,7 @@ ogImage: "../../assets/images/sun-energy.png"
 
     const zonesArr = Object.keys(zoneNames);
 
-    // 2. INSTANT UI RENDER (This makes the site load immediately!)
+    // Render the table instantly
     let initialHtml = "";
     zonesArr.forEach(code => {
       const isGreece = code === "GR";
@@ -86,7 +92,6 @@ ogImage: "../../assets/images/sun-energy.png"
     });
     tbody.innerHTML = initialHtml;
 
-    // 3. Setup Proxy and Retry Logic
     const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const getProxyUrl = (targetUrl) => {
       return isLocalhost 
@@ -94,8 +99,9 @@ ogImage: "../../assets/images/sun-energy.png"
         : `/api/energy-proxy?target=${encodeURIComponent(targetUrl)}`;
     };
 
-    async function fetchWithRetry(targetUrl, maxRetries = 4) {
+    async function fetchWithRetry(targetUrl, maxRetries = 3) {
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        if (!isPageActive) return null; // Abort if user left page
         try {
           const res = await fetch(getProxyUrl(targetUrl));
           if (res.status === 429) {
@@ -111,52 +117,51 @@ ogImage: "../../assets/images/sun-energy.png"
       }
     }
 
-    // Function to visually sort the table after today's data is loaded
     function sortTable() {
+      if (!isPageActive) return;
       const rows = Array.from(tbody.querySelectorAll("tr"));
       rows.sort((a, b) => {
         const priceA = parseFloat(a.dataset.price) || 9999;
         const priceB = parseFloat(b.dataset.price) || 9999;
         return priceA - priceB;
       });
-      tbody.append(...rows); // Re-inserts elements in sorted order
+      tbody.append(...rows);
     }
 
-    // 4. Fetch Data in Background
-    try {
-      // Step A: Load Today's Data in small, safe batches of 3
-      for (let i = 0; i < zonesArr.length; i += 3) {
-        const chunk = zonesArr.slice(i, i + 3);
-        await Promise.allSettled(chunk.map(async (code) => {
+    // Launch background fetch
+    (async function processQueue() {
+      try {
+        // Step A: Today's Data (Strictly ONE by ONE)
+        for (const code of zonesArr) {
+          if (!isPageActive) return; // Stop entirely if user navigated away
+          
           const td = document.getElementById(`today-${code}`);
           const row = td.closest('tr');
           try {
             const data = await fetchWithRetry(`https://api.energy-charts.info/price?bzn=${code}`);
-            if (data && data.price && data.price.length > 0) {
+            if (data && data?.price?.length > 0) {
               const avg = data.price.reduce((a, b) => a + b, 0) / data.price.length;
               td.innerText = avg.toFixed(2) + " €";
-              row.dataset.price = avg; // Save value for sorting
+              row.dataset.price = avg;
             } else {
               td.innerText = "N/A";
             }
           } catch (err) {
             td.innerText = "Σφάλμα";
           }
-        }));
-        await new Promise(r => setTimeout(r, 1000)); // 1s breather
-      }
-      
-      // Sort immediately after today's data finishes!
-      sortTable();
+          await new Promise(r => setTimeout(r, 300)); // Tiny 300ms breather
+        }
+        
+        if (isPageActive) sortTable();
 
-      // Step B: Load Previous Month's Data in the background
-      for (let i = 0; i < zonesArr.length; i += 3) {
-        const chunk = zonesArr.slice(i, i + 3);
-        await Promise.allSettled(chunk.map(async (code) => {
+        // Step B: Historical Data (Strictly ONE by ONE)
+        for (const code of zonesArr) {
+          if (!isPageActive) return; // Stop entirely if user navigated away
+          
           const td = document.getElementById(`prev-${code}`);
           try {
             const data = await fetchWithRetry(`https://api.energy-charts.info/price?bzn=${code}&start=${startStr}&end=${endStr}`);
-            if (data && data.price && data.price.length > 0) {
+            if (data && data?.price?.length > 0) {
               const avg = data.price.reduce((a, b) => a + b, 0) / data.price.length;
               td.innerText = avg.toFixed(2) + " €";
             } else {
@@ -165,12 +170,12 @@ ogImage: "../../assets/images/sun-energy.png"
           } catch (err) {
             td.innerText = "Σφάλμα";
           }
-        }));
-        await new Promise(r => setTimeout(r, 1200)); // 1.2s breather
-      }
+          await new Promise(r => setTimeout(r, 800)); // 800ms breather
+        }
 
-    } catch (error) {
-      console.error("Main fetch loop error:", error);
-    }
-  })();
+      } catch (error) {
+        console.error("Main fetch loop error:", error);
+      }
+    })();
+  });
 </script>
