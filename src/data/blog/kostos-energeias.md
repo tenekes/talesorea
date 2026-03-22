@@ -166,17 +166,35 @@ ogImage: "../../assets/images/sun-energy.png"
       tbody.innerHTML = html;
       document.getElementById("prev-month-header").innerText = "Μέσος: " + prevMonthName;
 
-      // STEP 2: Asynchronously fetch PREVIOUS MONTH's data
+// STEP 2: Asynchronously fetch PREVIOUS MONTH's data
       (async function fetchPreviousMonth() {
-        // Strict cooldown before starting historical data
-        await new Promise(r => setTimeout(r, 2500));
+        // 1. Give the Energy-Charts API a full 5 seconds to "breathe" after Step 1
+        await new Promise(r => setTimeout(r, 5000));
 
-        // Fetch sequentially (one by one) to avoid triggering burst limits
+        // 2. Increased to 5 max retries with a longer backoff
+        async function fetchWithRetry(targetUrl, maxRetries = 5) {
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            const res = await fetch(getProxyUrl(targetUrl));
+            
+            if (res.status === 429) {
+              // Wait longer: 4s, 8s, 12s, 16s, 20s
+              const waitTime = attempt * 4000;
+              console.warn(`⏳ Rate limited. Retrying in ${waitTime}ms (Attempt ${attempt}/${maxRetries})...`);
+              await new Promise(r => setTimeout(r, waitTime));
+              continue; 
+            }
+            
+            if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+            return await res.json();
+          }
+          throw new Error("Max retries reached due to 429 Rate Limits");
+        }
+
+        // Fetch sequentially (one by one)
         for (const item of validData) {
           const td = document.getElementById("prev-" + item.code);
           if (!td) continue;
 
-          // Removed &v=2 so Energy-Charts can serve this safely
           const targetUrl = `https://api.energy-charts.info/price?bzn=${item.code}&start=${startStr}&end=${endStr}`;
           
           try {
@@ -192,8 +210,8 @@ ogImage: "../../assets/images/sun-energy.png"
             td.innerText = "Σφάλμα";
           }
           
-          // Tiny delay between successful requests to be polite to the API
-          await new Promise(r => setTimeout(r, 400));
+          // 3. Wait a full 1.5 seconds between each country to prevent triggering the ban again
+          await new Promise(r => setTimeout(r, 1500));
         }
       })();
 
