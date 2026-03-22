@@ -140,11 +140,18 @@ ogImage: "../../assets/images/sun-energy.png"
 
       // STEP 2: Asynchronously fetch PREVIOUS MONTH's data
       (async function fetchPreviousMonth() {
-        for (let i = 0; i < validData.length; i += 4) {
-          const chunk = validData.slice(i, i + 4);
+        // Wait 2 seconds before starting the heavy historical data pull 
+        // completely preventing "429 Too Many Requests" from overlapping today's calls.
+        await new Promise(r => setTimeout(r, 2000));
+
+        for (let i = 0; i < validData.length; i += 3) {
+          const chunk = validData.slice(i, i + 3);
           const chunkPromises = chunk.map(item => 
             fetch("https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(`https://api.energy-charts.info/price?bzn=${item.code}&start=${startStr}&end=${endStr}`))
-              .then(res => res.json())
+              .then(res => {
+                if (!res.ok) throw new Error("Status " + res.status);
+                return res.json();
+              })
               .then(data => {
                 const td = document.getElementById("prev-" + item.code);
                 if (data && data.price && data.price.length > 0) {
@@ -161,8 +168,8 @@ ogImage: "../../assets/images/sun-energy.png"
           );
           await Promise.allSettled(chunkPromises);
           
-          if (i + 4 < validData.length) {
-            await new Promise(r => setTimeout(r, 450)); // gentle 450ms delay
+          if (i + 3 < validData.length) {
+            await new Promise(r => setTimeout(r, 1200)); // Gentle 1.2 second delay between 3-country batches
           }
         }
       })();
