@@ -48,48 +48,30 @@ ogImage: "../../assets/images/sun-energy.png"
 <script>
   (async function() {
     const zoneNames = {
-      "GR": "Ελλάδα 🇬🇷"
+      "GR": "Ελλάδα 🇬🇷", "DE-LU": "Γερμανία/Λουξεμβούργο 🇩🇪🇱🇺", "FR": "Γαλλία 🇫🇷",
+      "IT-North": "Ιταλία (Βόρεια) 🇮🇹", "ES": "Ισπανία 🇪🇸", "AT": "Αυστρία 🇦🇹",
+      "BE": "Βέλγιο 🇧🇪", "NL": "Ολλανδία 🇳🇱", "PL": "Πολωνία 🇵🇱", "PT": "Πορτογαλία 🇵🇹",
+      "RO": "Ρουμανία 🇷🇴", "BG": "Βουλγαρία 🇧🇬", "HU": "Ουγγαρία 🇭🇺", "CZ": "Τσεχία 🇨🇿",
+      "SK": "Σλοβακία 🇸🇰", "SI": "Σλοβενία 🇸🇮", "HR": "Κροατία 🇭🇷", "RS": "Σερβία 🇷🇸",
+      "CH": "Ελβετία 🇨🇭", "DK1": "Δανία 🇩🇰", "FI": "Φινλανδία 🇫🇮", "EE": "Εσθονία 🇪🇪",
+      "LT": "Λιθουανία 🇱🇹", "LV": "Λετονία 🇱🇻"
     };
 
     const tbody = document.getElementById("energy-tbody");
     if (!tbody) return;
     
     try {
-      const results = [];
-      const zonesArr = Object.keys(zoneNames);
+      // 100% Reliable Cloudflare Pages Function endpoint
+      const res = await fetch("/api/energy");
+      if (!res.ok) throw new Error("API Route /api/energy not deployed yet");
       
-      // Fetch in chunks of 4 to avoid rate limiting from the CORS proxy
-      for (let i = 0; i < zonesArr.length; i += 4) {
-        const chunk = zonesArr.slice(i, i + 4);
-        const chunkPromises = chunk.map(zoneCode => 
-          fetch("https://api.allorigins.win/get?url=" + encodeURIComponent("https://api.energy-charts.info/price?bzn=" + zoneCode))
-            .then(res => res.json())
-            .then(resData => {
-              if (!resData || !resData.contents) throw new Error("No contents");
-              const data = JSON.parse(resData.contents);
-              if (data && data.price && data.price.length > 0) {
-                const avg = data.price.reduce((a, b) => a + b, 0) / data.price.length;
-                return { code: zoneCode, price: avg, source: "ENTSO-E" };
-              }
-              return { code: zoneCode, price: null, source: "N/A" };
-            })
-            .catch((err) => {
-              console.error("Error fetching " + zoneCode + ":", err);
-              return { code: zoneCode, price: null };
-            })
-        );
-        const chunkResults = await Promise.allSettled(chunkPromises);
-        results.push(...chunkResults.map(r => r.status === "fulfilled" ? r.value : { code: "ERR", price: null }));
-        
-        // Wait 300ms between chunks to be polite to the proxy
-        if (i + 4 < zonesArr.length) {
-          await new Promise(r => setTimeout(r, 400));
-        }
-      }
+      const results = await res.json();
       
       let validData = results
         .filter(item => item && item.price !== null)
         .map(item => ({ ...item, name: zoneNames[item.code] || item.code }));
+      
+      validData.sort((a, b) => a.price - b.price);
       
       // Sort by price (lowest to highest) so the viewer can easily see the ranking
       validData.sort((a, b) => a.price - b.price);
