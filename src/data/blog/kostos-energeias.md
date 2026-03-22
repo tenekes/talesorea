@@ -80,7 +80,7 @@ ogImage: "../../assets/images/sun-energy.png"
     try {
       // Create concurrent fetches for all required zones
       const promises = zones.map(zone => 
-        fetch("https://api.energy-charts.info/price?bzn=" + zone.code)
+        fetch("https://api.allorigins.win/raw?url=" + encodeURIComponent("https://api.energy-charts.info/price?bzn=" + zone.code))
           .then(res => res.json())
           .then(data => {
             if (data && data.price && data.price.length > 0) {
