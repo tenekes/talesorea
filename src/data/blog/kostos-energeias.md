@@ -78,6 +78,15 @@ ogImage: "../../assets/images/sun-energy.png"
     const monthNames = ["Ιανουάριος", "Φεβρουάριος", "Μάρτιος", "Απρίλιος", "Μάιος", "Ιούνιος", "Ιούλιος", "Αύγουστος", "Σεπτέμβριος", "Οκτώβριος", "Νοέμβριος", "Δεκέμβριος"];
     const prevMonthName = monthNames[prevMonth - 1] + " " + prevYear;
 
+    // Environment-aware proxy routing
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const getProxyUrl = (targetUrl) => {
+      // Local dev uses public proxy (throttled). Production uses blazing fast 100% reliable CF Edge.
+      return isLocalhost 
+        ? `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`
+        : `/api/proxy?target=${encodeURIComponent(targetUrl)}`;
+    };
+
     try {
       const results = [];
       const zonesArr = Object.keys(zoneNames);
@@ -85,8 +94,9 @@ ogImage: "../../assets/images/sun-energy.png"
       // STEP 1: Fetch TODAY's data in chunks
       for (let i = 0; i < zonesArr.length; i += 4) {
         const chunk = zonesArr.slice(i, i + 4);
-        const chunkPromises = chunk.map(zoneCode => 
-          fetch("https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent("https://api.energy-charts.info/price?bzn=" + zoneCode))
+        const chunkPromises = chunk.map(zoneCode => {
+          const targetUrl = `https://api.energy-charts.info/price?bzn=${zoneCode}`;
+          return fetch(getProxyUrl(targetUrl))
             .then(res => res.json())
             .then(data => {
               if (data && data.price && data.price.length > 0) {
@@ -95,8 +105,9 @@ ogImage: "../../assets/images/sun-energy.png"
               }
               return { code: zoneCode, price: null, source: "N/A" };
             })
-            .catch((err) => ({ code: zoneCode, price: null }))
-        );
+            .catch((err) => ({ code: zoneCode, price: null }));
+        });
+        
         const chunkResults = await Promise.allSettled(chunkPromises);
         chunkResults.forEach(res => {
           if (res.status === 'fulfilled' && res.value.price !== null) {
@@ -104,8 +115,8 @@ ogImage: "../../assets/images/sun-energy.png"
           }
         });
         
-        if (i + 4 < zonesArr.length) {
-          await new Promise(r => setTimeout(r, 400));
+        if (i + 4 < zonesArr.length && isLocalhost) {
+          await new Promise(r => setTimeout(r, 600)); // Stricter delay for local public proxy
         }
       }
       
@@ -140,14 +151,15 @@ ogImage: "../../assets/images/sun-energy.png"
 
       // STEP 2: Asynchronously fetch PREVIOUS MONTH's data
       (async function fetchPreviousMonth() {
-        // Wait 2 seconds before starting the heavy historical data pull 
-        // completely preventing "429 Too Many Requests" from overlapping today's calls.
-        await new Promise(r => setTimeout(r, 2000));
+        // Strict cooldown for local public proxy to avoid 429 entirely
+        if (isLocalhost) await new Promise(r => setTimeout(r, 2500));
 
+        // Using chunks of 3 for maximum safety
         for (let i = 0; i < validData.length; i += 3) {
           const chunk = validData.slice(i, i + 3);
-          const chunkPromises = chunk.map(item => 
-            fetch("https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(`https://api.energy-charts.info/price?bzn=${item.code}&start=${startStr}&end=${endStr}`))
+          const chunkPromises = chunk.map(item => {
+            const targetUrl = `https://api.energy-charts.info/price?bzn=${item.code}&start=${startStr}&end=${endStr}`;
+            return fetch(getProxyUrl(targetUrl))
               .then(res => {
                 if (!res.ok) throw new Error("Status " + res.status);
                 return res.json();
@@ -164,12 +176,13 @@ ogImage: "../../assets/images/sun-energy.png"
               .catch(err => {
                 const td = document.getElementById("prev-" + item.code);
                 if (td) td.innerText = "Σφάλμα";
-              })
-          );
+              });
+          });
+          
           await Promise.allSettled(chunkPromises);
           
-          if (i + 3 < validData.length) {
-            await new Promise(r => setTimeout(r, 1200)); // Gentle 1.2 second delay between 3-country batches
+          if (i + 3 < validData.length && isLocalhost) {
+            await new Promise(r => setTimeout(r, 1500)); // 1.5s delay between batches explicitly for local proxy
           }
         }
       })();
