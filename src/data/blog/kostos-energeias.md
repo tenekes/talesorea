@@ -77,44 +77,31 @@ ogImage: "../../assets/images/sun-energy.png"
     const monthNames = ["Ιανουάριος", "Φεβρουάριος", "Μάρτιος", "Απρίλιος", "Μάιος", "Ιούνιος", "Ιούλιος", "Αύγουστος", "Σεπτέμβριος", "Οκτώβριος", "Νοέμβριος", "Δεκέμβριος"];
     const prevMonthName = monthNames[prevMonth - 1] + " " + prevYear;
 
-    // Environment-aware proxy routing
-    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const getProxyUrl = (targetUrl) => {
-      return isLocalhost 
-        ? `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`
-        : `/api/energy-proxy?target=${encodeURIComponent(targetUrl)}`;
-    };
-
-    // Helper function: Fetch with Exponential Backoff Retries
-    async function fetchWithRetry(targetUrl, maxRetries = 3) {
+    // DIRECT FETCH HELPER: No proxy, no massive delays.
+    async function fetchDirect(targetUrl, maxRetries = 2) {
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        const res = await fetch(getProxyUrl(targetUrl));
-        
+        const res = await fetch(targetUrl);
         if (res.status === 429) {
-          const waitTime = attempt * 3000;
-          console.warn(`⏳ Rate limited. Retrying in ${waitTime}ms (Attempt ${attempt}/${maxRetries})...`);
-          await new Promise(r => setTimeout(r, waitTime));
+          await new Promise(r => setTimeout(r, 1500)); // Short 1.5s wait
           continue; 
         }
-        
         if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
         return await res.json();
       }
-      throw new Error("Max retries reached due to 429 Rate Limits");
+      throw new Error("Rate Limited");
     }
 
     try {
       const results = [];
       const zonesArr = Object.keys(zoneNames);
       
-      // STEP 1: Fetch TODAY's data
+      // STEP 1: Fetch TODAY's data directly
       for (let i = 0; i < zonesArr.length; i += 4) {
         const chunk = zonesArr.slice(i, i + 4);
         const chunkPromises = chunk.map(async (zoneCode) => {
-          // Removed &v=2 to allow proper caching
           const targetUrl = `https://api.energy-charts.info/price?bzn=${zoneCode}`;
           try {
-            const data = await fetchWithRetry(targetUrl);
+            const data = await fetchDirect(targetUrl);
             if (data && data.price && data.price.length > 0) {
               const avg = data.price.reduce((a, b) => a + b, 0) / data.price.length;
               return { code: zoneCode, price: avg, source: "ENTSO-E" };
@@ -131,10 +118,6 @@ ogImage: "../../assets/images/sun-energy.png"
             results.push(res.value);
           }
         });
-        
-        if (i + 4 < zonesArr.length) {
-          await new Promise(r => setTimeout(r, 600)); 
-        }
       }
       
       let validData = results
@@ -146,10 +129,8 @@ ogImage: "../../assets/images/sun-energy.png"
         return;
       }
 
-      // Sort by price (lowest to highest)
       validData.sort((a, b) => a.price - b.price);
 
-      // Render the HTML rows for Today
       let html = "";
       validData.forEach((item) => {
         const isGreece = item.code === "GR";
@@ -166,31 +147,8 @@ ogImage: "../../assets/images/sun-energy.png"
       tbody.innerHTML = html;
       document.getElementById("prev-month-header").innerText = "Μέσος: " + prevMonthName;
 
-// STEP 2: Asynchronously fetch PREVIOUS MONTH's data
+      // STEP 2: Fetch PREVIOUS MONTH directly
       (async function fetchPreviousMonth() {
-        // 1. Give the Energy-Charts API a full 5 seconds to "breathe" after Step 1
-        await new Promise(r => setTimeout(r, 5000));
-
-        // 2. Increased to 5 max retries with a longer backoff
-        async function fetchWithRetry(targetUrl, maxRetries = 5) {
-          for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            const res = await fetch(getProxyUrl(targetUrl));
-            
-            if (res.status === 429) {
-              // Wait longer: 4s, 8s, 12s, 16s, 20s
-              const waitTime = attempt * 4000;
-              console.warn(`⏳ Rate limited. Retrying in ${waitTime}ms (Attempt ${attempt}/${maxRetries})...`);
-              await new Promise(r => setTimeout(r, waitTime));
-              continue; 
-            }
-            
-            if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-            return await res.json();
-          }
-          throw new Error("Max retries reached due to 429 Rate Limits");
-        }
-
-        // Fetch sequentially (one by one)
         for (const item of validData) {
           const td = document.getElementById("prev-" + item.code);
           if (!td) continue;
@@ -198,7 +156,7 @@ ogImage: "../../assets/images/sun-energy.png"
           const targetUrl = `https://api.energy-charts.info/price?bzn=${item.code}&start=${startStr}&end=${endStr}`;
           
           try {
-            const data = await fetchWithRetry(targetUrl);
+            const data = await fetchDirect(targetUrl);
             if (data && data.price && data.price.length > 0) {
               const avg = data.price.reduce((a, b) => a + b, 0) / data.price.length;
               td.innerText = avg.toFixed(2) + " €";
@@ -206,16 +164,14 @@ ogImage: "../../assets/images/sun-energy.png"
               td.innerText = "N/A";
             }
           } catch (err) {
-            console.error(`Failed to load previous month for ${item.code}:`, err);
             td.innerText = "Σφάλμα";
           }
           
-          // 3. Wait a full 1.5 seconds between each country to prevent triggering the ban again
-          await new Promise(r => setTimeout(r, 1500));
+          // Tiny 100ms breather, user IPs don't get punished like Cloudflare IPs
+          await new Promise(r => setTimeout(r, 100));
         }
       })();
 
-    // The missing closing brackets are safely restored here:
     } catch (error) {
       console.error("Error fetching energy prices:", error);
       tbody.innerHTML = "<tr><td colspan=\"4\" class=\"text-center py-6 text-red-500\">❌ Σφάλμα κατά τη φόρτωση δεδομένων.</td></tr>";
