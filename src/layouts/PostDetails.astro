@@ -173,6 +173,11 @@ const nextPost =
         data-theme="auto"
       ></div>
       <script is:inline async defer src="https://cusdis.com/js/cusdis.es.js"></script>
+      <script is:inline data-astro-rerun>
+        if (window.CUSDIS && window.CUSDIS.initial) {
+          window.CUSDIS.initial();
+        }
+      </script>
     </div>
 
   </main>
